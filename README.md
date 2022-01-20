@@ -1,6 +1,10 @@
 # ImageColorizationUsingGAN
 A PyTorch implementation of "Image colorization using GAN".
 
+## Incomplete
+
+This project is incomplete. We are still working.
+
 ## Related Papers
 
 Kamyar Nazeri, Eric Ng and Mehran Ebrahimi:
