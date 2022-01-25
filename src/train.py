@@ -7,13 +7,15 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.utils import make_grid
 from models import Generator, Discriminator, weights_init
-from datasets import Places365
-from config import config, netGs, netDs
+from places365 import create_dataset, Places365
+from config import config, datasets, netGs, netDs
 
 
 class Trainable(tune.Trainable):
     def setup(self, config):
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+
+        dataset_config = datasets[config['dataset']]
 
         transform = transforms.Compose([
             transforms.ToTensor(),
@@ -26,12 +28,12 @@ class Trainable(tune.Trainable):
         ])
 
         train_dataset = Places365(
-            '/data/places365_standard', train=True, transform=transform, target_transform=target_transform)
+            dataset_config['dst_dir'], train=True, transform=transform, target_transform=target_transform)
         self.train_dataloader = DataLoader(train_dataset, batch_size=config['batch_size'], shuffle=True)
 
         val_dataset = Places365(
-            '/data/places365_standard', train=False, transform=transform, target_transform=target_transform)
-        self.val_dataloader = DataLoader(val_dataset, batch_size=10, shuffle=True)
+            dataset_config['dst_dir'], train=False, transform=transform, target_transform=target_transform)
+        self.val_dataloader = DataLoader(val_dataset, batch_size=25, shuffle=True)
 
         self.fixed_gray_images, self.fixed_rgb_images = next(iter(self.val_dataloader))
         self.fixed_gray_images = self.fixed_gray_images.to(self.device)
@@ -40,7 +42,7 @@ class Trainable(tune.Trainable):
         self.netG = Generator(**netGs[config['netG']]).to(self.device)
         self.netG.apply(weights_init)
 
-        self.netD = Discriminator(**netDs[config['netD']]).to(self.device)
+        self.netD = Discriminator(**netDs[config['netD']], p=config['p']).to(self.device)
         self.netD.apply(weights_init)
 
         self.optimizerG = Adam(self.netG.parameters(), lr=config['lrG'], betas=(0.5, 0.999))
@@ -57,6 +59,9 @@ class Trainable(tune.Trainable):
         self.n_updates = 1
 
     def step(self):
+        self.netG.train()
+        self.netD.train()
+
         for gray_images, real_images in self.train_dataloader:
             self.netD.zero_grad()
 
@@ -77,7 +82,7 @@ class Trainable(tune.Trainable):
             self.optimizerD.step()
 
             errD = (errD_real + errD_fake) / 2.
-            self.writer.add_scalar('Discriminator Loss', errD.item(), self.n_updates)
+            self.writer.add_scalar('Discriminator/Loss', errD.item(), self.n_updates)
 
             self.netG.zero_grad()
 
@@ -90,25 +95,23 @@ class Trainable(tune.Trainable):
 
             self.optimizerG.step()
 
-            self.writer.add_scalar('Generator Loss', errG.item(), self.n_updates)
-            self.writer.add_scalar('Generator GAN Loss', errG_gan.item(), self.n_updates)
-            self.writer.add_scalar('Generator Distance Loss', errG_dis.item(), self.n_updates)
+            self.writer.add_scalar('Generator/Distance Loss', errG_dis.item(), self.n_updates)
+            self.writer.add_scalar('Generator/GAN Loss', errG_gan.item(), self.n_updates)
+            self.writer.add_scalar('Generator/Total Loss', errG.item(), self.n_updates)
 
             self.n_updates += 1
 
-            if self.n_updates % 10000 == 0:
-                self.netG.eval()
-                self.netD.eval()
+        self.netG.eval()
+        self.netD.eval()
 
-                fake_images = self.netG(self.fixed_gray_images)
-                real_images = self.fixed_rgb_images
+        fake_images = self.netG(self.fixed_gray_images)
+        real_images = self.fixed_rgb_images
 
-                images = torch.cat([fake_images, real_images])
-                image_grid = make_grid(images, normalize=True, value_range=(-1, 1), nrow=10)
-                self.writer.add_image('Images', image_grid, self.n_updates)
+        fake_image_grid = make_grid(fake_images, normalize=True, value_range=(-1, 1), nrow=5)
+        real_image_grid = make_grid(real_images, normalize=True, value_range=(-1, 1), nrow=5)
 
-                self.netG.train()
-                self.netD.train()
+        self.writer.add_image(f'{self.trial_id}/Fake', fake_image_grid, self.iteration)
+        self.writer.add_image(f'{self.trial_id}/Real', real_image_grid, self.iteration)
 
         return {
             'errG': errG.item(),
@@ -119,9 +122,16 @@ class Trainable(tune.Trainable):
 
 
 if __name__ == '__main__':
+    for dataset_config in datasets.values():
+        try:
+            create_dataset(**dataset_config)
+        except FileExistsError:
+            pass
+
     tune.run(
         Trainable,
-        stop={'training_iteration': 200},
+        stop={'training_iteration': 100},
         config=config,
-        resources_per_trial={'gpu': 0.5, 'cpu': 1}
+        resources_per_trial={'gpu': 1, 'cpu': 1},
+        num_samples=5
     )
