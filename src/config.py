@@ -242,12 +242,24 @@ netDs = {
 }
 
 
+datasets = {
+    'places365_20220124': {
+        'src_dir': '/data/places365_standard',
+        'dst_dir': '/data/places365_20220124',
+        'n_classes': 10,
+        'n_train_samples_per_class': 1000,
+        'n_val_samples_per_class': 10,
+    }
+}
+
+
 config = {
+    'dataset': tune.grid_search(list(datasets.keys())),
     'netG': tune.grid_search(list(netGs.keys())),
     'netD': tune.grid_search(list(netDs.keys())),
     'lrG': tune.grid_search([2e-4]),
     'lrD': tune.grid_search([2e-4]),
-    'lambda': tune.grid_search([30, 90]),
-    'batch_size': 30,
-    'n_epochs': 10,
+    'p': tune.grid_search([0.1, 0.7]),
+    'lambda': tune.grid_search([30, 100]),
+    'batch_size': 64,
 }
