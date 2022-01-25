@@ -63,9 +63,12 @@ class Generator(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, blocks):
+    def __init__(self, blocks, p):
         super(Discriminator, self).__init__()
-        self.net = nn.Sequential(*[Conv2dBlock(**b) for b in blocks])
+        self.net = nn.Sequential(
+            nn.Dropout(p),
+            *[Conv2dBlock(**b) for b in blocks]
+        )
 
     def forward(self, x):
         return self.net(x)
