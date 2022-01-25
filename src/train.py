@@ -110,8 +110,8 @@ class Trainable(tune.Trainable):
         fake_image_grid = make_grid(fake_images, normalize=True, value_range=(-1, 1), nrow=5)
         real_image_grid = make_grid(real_images, normalize=True, value_range=(-1, 1), nrow=5)
 
-        self.writer.add_image(f'{self.trial_id}/Fake', fake_image_grid, self.iteration)
-        self.writer.add_image(f'{self.trial_id}/Real', real_image_grid, self.iteration)
+        self.writer.add_image(f'{self.trial_id}/Fake', fake_image_grid, self.iteration + 1)
+        self.writer.add_image(f'{self.trial_id}/Real', real_image_grid, self.iteration + 1)
 
         return {
             'errG': errG.item(),
