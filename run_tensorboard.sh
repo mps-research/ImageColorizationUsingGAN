@@ -7,4 +7,4 @@ docker run \
   -v $(pwd)/models:/models \
   -p 6006:6006 \
   --gpus '"device=1"' \
-  -it cdcgan /bin/bash
+  -it icgan /bin/bash
